@@ -3,6 +3,7 @@ package com.nttbootcamp.msappmobileyanki.application.controller;
 
 import com.nttbootcamp.msappmobileyanki.domain.beans.AvailableAmountDTO;
 import com.nttbootcamp.msappmobileyanki.domain.beans.CreateYankiAccountDTO;
+import com.nttbootcamp.msappmobileyanki.domain.beans.CreateYankiAccountWithCardDTO;
 import com.nttbootcamp.msappmobileyanki.domain.model.YankiAccount;
 import com.nttbootcamp.msappmobileyanki.infraestructure.services.YankiAccountService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,18 @@ public class YankiAccountController {
 		Map<String, Object> response = new HashMap<>();
 
 		return request.flatMap(a -> service.createYankiAccount(a).map(c -> {
+			response.put("Account", c);
+			response.put("Message", "Account created Successfully");
+			return ResponseEntity.created(URI.create("/Accounts/Entities/Account/".concat(c.getCellphoneNumber())))
+					.contentType(MediaType.APPLICATION_JSON).body(response);
+		}));
+	}
+	@PostMapping("/WithCard")
+	public Mono<ResponseEntity<Map<String, Object>>> createAccountWithCard(@Valid @RequestBody Mono<CreateYankiAccountWithCardDTO> request) {
+
+		Map<String, Object> response = new HashMap<>();
+
+		return request.flatMap(a -> service.createYankiAccountWithCard(a).map(c -> {
 			response.put("Account", c);
 			response.put("Message", "Account created Successfully");
 			return ResponseEntity.created(URI.create("/Accounts/Entities/Account/".concat(c.getCellphoneNumber())))

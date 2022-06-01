@@ -21,7 +21,7 @@ import java.util.Map;
 public class YankiAccountTransactionController {
     @Autowired
     private IYankiAccountTransactionService service;
-    @PostMapping("/")
+    @PostMapping
     public Mono<ResponseEntity<Map<String, Object>>> yankiPayment(@Valid @RequestBody Mono<YankiOperationDTO> request) {
 
         Map<String, Object> response = new HashMap<>();

@@ -33,6 +33,7 @@ public class YankiAccount {
 	@NotNull	
 	private Boolean valid;
 	private String linkedDebitCard;
+	private String linkedAccount;
 	private String email;
 	private String imei;
 	private String docIdemType;

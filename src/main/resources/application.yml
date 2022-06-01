@@ -1,16 +1,33 @@
 spring:
   data:
     mongodb:
-      uri: mongodb+srv://trainingdbnttdata:zMaT0bwJ86xps4wN@proyectobootcamp.jyiov.mongodb.net/accounts
+      uri: mongodb+srv://trainingdbnttdata:zMaT0bwJ86xps4wN@proyectobootcamp.jyiov.mongodb.net/yanki
   application:
     name: ms-yanki-service
-  server:
-    port: 9093
-#  config:
-#    import: optional:configserver:http://localhost:8081
-#  cloud:
-#    config:
-#      uri: http://localhost:8081
+  kafka:
+    bootstrap-servers: moped-01.srvs.cloudkafka.com:9094,moped-02.srvs.cloudkafka.com:9094,moped-03.srvs.cloudkafka.com:9094
+    properties:
+      security:
+        protocol: SASL_SSL
+      sasl:
+        mechanism: SCRAM-SHA-256
+        jaas:
+          config: org.apache.kafka.common.security.scram.ScramLoginModule required username="rb1j5rt0" password="R9oqA5r52g5TJoYxd6S_I3xrE9XGQ2gQ";
+  cloud:
+    function:
+      definition: input
+    stream:
+      bindings:
+        output-out-0:
+          destination: rb1j5rt0-updaccount
+        input-in-0:
+          destination: rb1j5rt0-yankiout
+    config:
+      uri: http://localhost:8099
+  config:
+    import: optional:configserver:http://localhost:8099
+server:
+  port: 9093
 eureka:
   client:
     register-with-eureka: true

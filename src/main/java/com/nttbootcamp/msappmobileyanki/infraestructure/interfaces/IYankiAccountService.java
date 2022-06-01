@@ -8,11 +8,15 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.Collection;
 import java.util.List;
 
 public interface IYankiAccountService {
 	Flux<YankiAccount> findAll();
+
+	 Mono<YankiAccount> updateBalanceWithdrawal(String linkedAccount, BigDecimal balance);
+
+	 Mono<YankiAccount> updateBalanceDeposit(String linkedAccount, BigDecimal balance);
+
 	Mono<YankiAccount> createYankiAccount(CreateYankiAccountDTO account);
 	Mono<YankiAccount> createYankiAccountWithCard(CreateYankiAccountWithCardDTO account);
 	Mono<YankiAccount> delete(String id);

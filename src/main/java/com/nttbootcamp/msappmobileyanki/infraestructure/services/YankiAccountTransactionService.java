@@ -3,44 +3,38 @@ package com.nttbootcamp.msappmobileyanki.infraestructure.services;
 
 import com.nttbootcamp.msappmobileyanki.application.exception.EntityNotExistsException;
 import com.nttbootcamp.msappmobileyanki.application.exception.ResourceNotCreatedException;
+import com.nttbootcamp.msappmobileyanki.domain.beans.YankiMessageDTO;
 import com.nttbootcamp.msappmobileyanki.domain.beans.YankiOperationDTO;
-import com.nttbootcamp.msappmobileyanki.domain.enums.TransactionType;
+import com.nttbootcamp.msappmobileyanki.domain.enums.YankiTransactionType;
 import com.nttbootcamp.msappmobileyanki.domain.model.Transaction;
 import com.nttbootcamp.msappmobileyanki.domain.model.YankiAccount;
 import com.nttbootcamp.msappmobileyanki.domain.repository.TransactionRepository;
-import com.nttbootcamp.msappmobileyanki.domain.repository.YankiAccountRepository;
 import com.nttbootcamp.msappmobileyanki.infraestructure.interfaces.IYankiAccountService;
 import com.nttbootcamp.msappmobileyanki.infraestructure.interfaces.IYankiAccountTransactionService;
-import com.nttbootcamp.msappmobileyanki.infraestructure.kafkaservices.IDebitCardStream;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MimeTypeUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
-import reactor.util.function.Tuple3;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.YearMonth;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 @Service
 public class YankiAccountTransactionService implements IYankiAccountTransactionService {
 
     //Services and Repositories
     @Autowired
-    TransactionRepository tRepository;
+    private TransactionRepository tRepository;
     @Autowired
-    IYankiAccountService accountService;
+    private YankiAccountService accountService;
     @Autowired
-    IDebitCardStream debitCardStream;
-
+    private StreamBridge streamBridge;
     //Crud
     @Override
     public Flux<Transaction> findAll() {
@@ -80,6 +74,8 @@ public class YankiAccountTransactionService implements IYankiAccountTransactionS
         return  Mono.zip(fromAccount,toAccount)
                 .filter(a-> !(dto.getFromCellphoneAccount().equals(dto.getToCellphoneAccount())))
                 .switchIfEmpty(Mono.error(new ResourceNotCreatedException("Account cannot be the same")))
+                .filter(a->a.getT1().getBalance().compareTo(dto.getAmount())>=0)
+                .switchIfEmpty(Mono.error(new ResourceNotCreatedException("Yanki account doesn't have sufficient funds")))
                 .flatMap(a->saveTransactionPayment.apply(a,dto))
                 .switchIfEmpty(Mono.error(new ResourceNotCreatedException("Transaction error")));
 
@@ -94,26 +90,44 @@ public class YankiAccountTransactionService implements IYankiAccountTransactionS
                 .credit(dto.getAmount())
                 .fromCellphoneAccount(tuple2.getT1().getCellphoneNumber())
                 .toCellphoneAccount(tuple2.getT2().getCellphoneNumber())
-                .transactiontype(TransactionType.PAYMENT)
+                .transactiontype(YankiTransactionType.YANKI_PAYMENT)
                 .createDate(LocalDate.now())
                 .createDateTime(LocalDateTime.now())
                 .build();
 
            return Mono.just(tuple2)
-                    .flatMap(t2-> Mono.just(t2.getT1().getLinkedDebitCard())
-                            .filter(a->a!=null)
-                            .flatMap(s->debitCardStream.doCardWithdraw(dto.getFromCellphoneAccount(),dto.getAmount()))
-                            .switchIfEmpty(accountService.updateBalanceSend(dto.getFromCellphoneAccount(),
-                                    dto.getAmount()))
-                            .thenReturn(t2)
-                    )
-                    .flatMap(t2-> Mono.just(t2.getT2().getLinkedDebitCard())
-                            .filter(a->a!=null)
-                            .flatMap(s->debitCardStream.doCardDeposit(dto.getToCellphoneAccount(),dto.getAmount()))
-                            .switchIfEmpty(accountService.updateBalanceReceive(dto.getToCellphoneAccount(),
-                                                                            dto.getAmount()))
-                            .thenReturn(t2)
-                    ).then(tRepository.save(t));
+                    .flatMap(t1->{
+                                    if(t1.getT1().getLinkedDebitCard()!=null){
+                                        YankiMessageDTO w= YankiMessageDTO
+                                                .builder()
+                                                .debitCardNumber(t1.getT1().getLinkedDebitCard())
+                                                .businessPartnerId(t1.getT1().getDocNum())
+                                                .linkedAccount(t1.getT1().getLinkedAccount())
+                                                .amount(dto.getAmount())
+                                                .transactionType(YankiTransactionType.ACCOUNT_WITHDRAWAL)
+                                                .build();
+                                        streamBridge.send("output-out-0",w, MimeTypeUtils.APPLICATION_JSON);
+                                    }
+                                    return accountService.updateBalanceSend(dto.getFromCellphoneAccount(),
+                                            dto.getAmount()).thenReturn(t1);
+                    })
+                   .flatMap(t2-> {
+
+                                    if (tuple2.getT2().getLinkedDebitCard() != null) {
+                                       YankiMessageDTO w = YankiMessageDTO
+                                               .builder()
+                                               .debitCardNumber(t2.getT1().getLinkedDebitCard())
+                                               .businessPartnerId(t2.getT2().getDocNum())
+                                               .linkedAccount(t2.getT2().getLinkedAccount())
+                                               .amount(dto.getAmount())
+                                               .transactionType(YankiTransactionType.ACCOUNT_DEPOSIT)
+                                               .build();
+                                       streamBridge.send("output-out-0", w, MimeTypeUtils.APPLICATION_JSON);
+                                   }
+                                   return accountService.updateBalanceReceive(dto.getToCellphoneAccount(),
+                                           dto.getAmount()).thenReturn(t2);
+
+                   }).then(tRepository.save(t));
     };
 
 

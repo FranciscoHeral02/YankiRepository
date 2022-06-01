@@ -3,7 +3,8 @@
  */
 package com.nttbootcamp.msappmobileyanki.domain.model;
 
-import com.nttbootcamp.msappmobileyanki.domain.enums.TransactionType;
+
+import com.nttbootcamp.msappmobileyanki.domain.enums.YankiTransactionType;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -27,7 +28,7 @@ public class Transaction {
 	@Id
     private String transactionId;
     @NotNull
-    private TransactionType transactiontype;
+    private YankiTransactionType transactiontype;
     private String fromCellphoneAccount;
     private String toCellphoneAccount;
     private LocalDateTime createDateTime;
